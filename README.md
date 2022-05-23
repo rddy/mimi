@@ -1,0 +1,28 @@
+## MIMI: Mutual Information-Maximizing Interface
+
+[MIMI](https://arxiv.org/abs/) is an algorithm for training an interface to map user command signals to system actions through unsupervised human-in-the-loop reinforcement learning.
+
+## Usage
+
+1.  Clone `mimi` into your home directory `~`
+2.  Download [data.zip](https://drive.google.com/file/d/1WEHJFkbBT3t1hu2Ici8o_k-_CxAUuSol/view?usp=sharing) and decompress it into `mimi/`
+3.  Setup an Anaconda virtual environment with `conda create -n mimienv python=3.6`
+4.  Install dependencies with `pip install -r requirements.txt` and `pip install pyglet==1.5.11`
+5.  Replace `your_install_dir/gym/envs/box2d/lunar_lander.py` with `deps/box2d/lunar_lander.py`
+6.  Install the `mimi` package with `python setup.py install`
+7.  Jupyter notebooks in `mimi/notebooks` provide an entry-point to the code base, where you can
+    play around with the environments and reproduce the figures from the paper.
+
+## Citation
+
+If you find this software useful in your work, we kindly request that you cite the following
+[paper](https://arxiv.org/abs/):
+
+```
+@article{,
+  title={},
+  author={},
+  journal={arXiv preprint arXiv:},
+  year={2022}
+}
+```
