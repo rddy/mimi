@@ -1,6 +1,6 @@
 ## MIMI: Mutual Information-Maximizing Interface
 
-[MIMI](https://arxiv.org/abs/) is an algorithm for training an interface to map user command signals to system actions through unsupervised human-in-the-loop reinforcement learning.
+[MIMI](https://arxiv.org/abs/2205.12381) is an algorithm for training an interface to map user command signals to system actions through unsupervised human-in-the-loop reinforcement learning.
 
 ## Usage
 
@@ -16,13 +16,13 @@
 ## Citation
 
 If you find this software useful in your work, we kindly request that you cite the following
-[paper](https://arxiv.org/abs/):
+[paper](https://arxiv.org/abs/2205.12381):
 
 ```
 @article{,
-  title={},
-  author={},
-  journal={arXiv preprint arXiv:},
+  title={First Contact: Unsupervised Human-Machine Co-Adaptation via Mutual Information Maximization},
+  author={Reddy, Siddharth and Levine, Sergey and Dragan, Anca D.},
+  journal={arXiv preprint arXiv:2205.12381},
   year={2022}
 }
 ```
