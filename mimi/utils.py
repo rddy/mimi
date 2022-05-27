@@ -427,6 +427,16 @@ def format_rollouts(rollouts, env):
   return data
 
 
+def rollout_policy(policy, env, n_steps, n_eps=None, ep_kwargs={}):
+  t = 0
+  rollouts = []
+  while (n_eps is None and t < n_steps) or (n_eps is not None and len(rollouts) < n_eps):
+    rollout = run_ep(policy, env, **ep_kwargs)
+    rollouts.append(rollout)
+    t += len(rollout)
+  return rollouts
+
+
 class ObsNormalizer(object):
 
   def __init__(self, obs_shape):
