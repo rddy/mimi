@@ -19,7 +19,7 @@ If you find this software useful in your work, we kindly request that you cite t
 [paper](https://arxiv.org/abs/2205.12381):
 
 ```
-@article{,
+@article{mimi2022,
   title={First Contact: Unsupervised Human-Machine Co-Adaptation via Mutual Information Maximization},
   author={Reddy, Siddharth and Levine, Sergey and Dragan, Anca D.},
   journal={arXiv preprint arXiv:2205.12381},
