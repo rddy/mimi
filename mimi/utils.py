@@ -4,15 +4,9 @@ from __future__ import division
 
 from collections import defaultdict
 from copy import deepcopy
-import collections
 import os
 import time
-import types
-import functools
 
-from IPython.core.display import display
-from IPython.core.display import HTML
-from matplotlib import animation
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import numpy as np
@@ -378,7 +372,6 @@ def format_rollouts(rollouts, env):
     'obses': [],
     'actions': [],
     'next_obses': [],
-    'rewards': []
   }
   for rollout_idx, rollout in enumerate(rollouts):
     for i, x in enumerate(rollout):

@@ -35,10 +35,7 @@ class MIRewardModel(object):
     )
 
   def format_rollouts(self, rollouts):
-    data = utils.format_rollouts(
-      rollouts,
-      self.env
-    )
+    data = utils.format_rollouts(rollouts, self.env)
     return utils.split_data(data, train_frac=0.9)
 
   def train(self, data):
