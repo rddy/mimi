@@ -166,7 +166,7 @@ class CursorEnv(MIMIEnv):
       self.viewer.window.activate()
     return super().reset()
 
-  def step(self, action, action_noise_std=1e-6, eps=1e-9):
+  def step(self, action, eps=1e-9):
     action = action / (eps + np.linalg.norm(action)) * self.speed
     self.prev_action = action
     if (self.pos + action >= 0).all() and (self.pos + action < 1).all():
@@ -226,22 +226,16 @@ class LanderEnv(MIMIEnv):
     self,
     *args,
     max_ep_len=500,
-    goal_cond_policy=None,
     **kwargs
     ):
 
     super().__init__(*args, **kwargs, max_ep_len=max_ep_len)
 
-    self.goal_cond_policy = goal_cond_policy
-
     self.name = 'lander'
 
     self.env = gym.make('LunarLander-v2')
 
-    if self.goal_cond_policy is None:
-      self.n_act_dim = self.env.action_space.low.size
-    else:
-      self.n_act_dim = 1
+    self.n_act_dim = self.env.action_space.low.size
     self.n_user_obs_dim = self.user_model.n_user_obs_dim
     self.n_env_obs_dim = self.env.observation_space.low.size
     self.n_min_env_obs_dim = 3
@@ -258,10 +252,6 @@ class LanderEnv(MIMIEnv):
     return super().reset()
 
   def step(self, action):
-    if self.goal_cond_policy is not None:
-      self.env.env.pred_x = action[0]
-      obs = np.concatenate((self.pos, action))
-      action = self.goal_cond_policy(obs)
     self.pos, r, done, info = self.env.step(action)
     self.user_obs = self.get_user_obs()
     if self.timestep >= self.max_ep_len:

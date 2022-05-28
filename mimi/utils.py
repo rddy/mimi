@@ -41,7 +41,6 @@ def get_tf_vars_in_scope(scope):
 
 
 def init_tf_vars(sess, scopes=None, use_cache=False):
-  """Initialize TF variables"""
   if scopes is None:
     sess.run(tf.global_variables_initializer())
   else:
@@ -56,14 +55,12 @@ def init_tf_vars(sess, scopes=None, use_cache=False):
 
 
 def save_tf_vars(sess, scope, save_path):
-  """Save TF variables"""
   saver = tf.train.Saver(
       [v for v in tf.global_variables() if v.name.startswith(scope + '/')])
   saver.save(sess, save_path=save_path)
 
 
 def load_tf_vars(sess, scope, load_path):
-  """Load TF variables"""
   saver = tf.train.Saver(
       [v for v in tf.global_variables() if v.name.startswith(scope + '/')])
   saver.restore(sess, load_path)
@@ -77,7 +74,6 @@ def build_mlp(input_placeholder,
               activation=None,
               output_activation=None,
               **kwargs):
-  """Build MLP model"""
   out = input_placeholder
   with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
     for _ in range(n_layers):
@@ -109,7 +105,6 @@ def make_perf_mat(perf_evals, y_key, smooth_win=10):
 
   def pad(lst, n):
     if len(lst) < n:
-      #p = np.nan
       p = np.mean(lst[-smooth_win:])
       lst += [p] * (n - len(lst))
     return lst
@@ -218,9 +213,6 @@ def sample_batch(size, data, data_keys, idxes_key, class_idxes_key=None):
 
 
 def split_data(data, train_frac=0.9, n_samples=None, bal_keys=None, bal_vals=None, idxes=None):
-  """Train-test split
-  Useful for sample_batch
-  """
   if n_samples is None:
     n_samples = len(list(data.values())[0])
   if idxes is None:
@@ -367,26 +359,6 @@ def compute_perf_metrics(rollouts, env):
     metrics[key] = np.mean(inds)
   metrics['rolloutlen'] = np.mean([len(rollout) for rollout in rollouts])
   return metrics
-
-
-def play_nb_vid(frames, figsize=(10, 5), dpi=500):
-  fig = plt.figure(figsize=figsize, dpi=dpi)
-  plt.axis('off')
-  ims = [[plt.imshow(frame, animated=True)] for frame in frames]
-  plt.close()
-  anim = animation.ArtistAnimation(fig, ims, interval=100, blit=True, repeat_delay=1000)
-  display(HTML(anim.to_html5_video()))
-  return anim
-
-
-def viz_cursor_rollout(rollout):
-  traj = np.array([x[0][:2] for x in rollout])
-  goal = rollout[0][-1]['goal']
-  plt.scatter(traj[:, 0], traj[:, 1], c=list(range(len(traj))))
-  plt.scatter(goal[0], goal[1], color='green')
-  plt.xlim([-0.1, 1.1])
-  plt.ylim([-0.1, 1.1])
-  plt.show()
 
 
 def rotate_vec(vec, ang):
