@@ -375,11 +375,9 @@ def format_rollouts(rollouts, env):
   }
   for rollout_idx, rollout in enumerate(rollouts):
     for i, x in enumerate(rollout):
-      next_obs_idxes = [i]
-      for j in next_obs_idxes:
-        data['obses'].append(x[0])
-        data['actions'].append(x[1])
-        data['next_obses'].append(rollout[j][3])
+      data['obses'].append(x[0])
+      data['actions'].append(x[1])
+      data['next_obses'].append(x[3])
   data = {k: np.array(v) for k, v in data.items()}
   data['env_obses'] = env.extract_env_obses(data['obses'])
   data['next_env_obses'] = env.extract_env_obses(data['next_obses'])
