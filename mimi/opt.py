@@ -29,7 +29,9 @@ class GP(object):
       n_policy_params = self.env.n_act_dim * self.n_obs_dim
       if self.use_bias:
         n_policy_params += self.env.n_act_dim
-    self.param_bounds = [param_bounds] * n_policy_params
+    if type(param_bounds) == tuple and len(param_bounds) == 2:
+      param_bounds = [param_bounds] * n_policy_params
+    self.param_bounds = param_bounds
 
   def policy_from_params(self, policy_params):
     if self.use_bias:
