@@ -26,3 +26,12 @@ If you find this software useful in your work, we kindly request that you cite t
   year={2022}
 }
 ```
+
+## Latent Space Exploration (Experimental)
+
+Explore the latent space of a generative model of MNIST images using hand gestures
+
+1.  Clone [this repo](https://github.com/YannDubs/disentangling-vae/commit/7b8285baa19d591cf34c652049884aca5d8acbca)
+2.  Set `dvae_dir` in `mimi/utils.py`
+3.  Download the [MNIST](https://github.com/lucastheis/deepbelief/blob/master/data/mnist.npz) dataset to `mimi/data/mnist/mnist.npz`
+3.  Run `notebooks/mnist.ipynb`

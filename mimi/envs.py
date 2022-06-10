@@ -11,9 +11,11 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from gym.envs.classic_control import rendering
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+import skimage.transform
 
 
 from . import utils
+from . import models
 
 
 class MIMIEnv(gym.Env):
@@ -34,6 +36,8 @@ class MIMIEnv(gym.Env):
     self.render_on_step = render_on_step
     self.reset_delay = reset_delay
     self.step_delay = step_delay
+
+    self.n_user_obs_dim = self.user_model.n_user_obs_dim
 
     self.user_obs = None
     self.prev_obs = None
@@ -132,6 +136,8 @@ class CursorEnv(MIMIEnv):
     goal_dist_thresh=0.15,
     speed=0.01,
     win_dims=(640,480),
+    min_pos=0,
+    max_pos=1,
     **kwargs
     ):
 
@@ -142,38 +148,52 @@ class CursorEnv(MIMIEnv):
     self.win_dims = win_dims
     self.speed = speed
     self.goal_dist_thresh = goal_dist_thresh
-    self.n_act_dim = 2
+    self.min_pos = min_pos
+    self.max_pos = max_pos
+
     self.n_env_obs_dim = 2
-    self.n_user_obs_dim = self.user_model.n_user_obs_dim
+    self.n_act_dim = self.n_env_obs_dim
 
-    self.init_pos = np.array([0.5, 0.5])
-    self.prev_action = None
+    self.init_pos = np.ones(self.n_env_obs_dim) * ((self.max_pos - self.min_pos) / 2 + self.min_pos)
 
-  def eval_metrics(self, obs, goal):
+  def _goal_dist(self, obs):
+    return np.linalg.norm(obs - self.goal)
+
+  def eval_metrics(self, obs):
     env_obs = self.extract_env_obses(obs[np.newaxis])[0]
-    goal_dist = np.linalg.norm(env_obs - goal)
+    goal_dist = self._goal_dist(env_obs)
     metrics = {}
-    metrics['succ'] = goal_dist <= self.goal_dist_thresh
     metrics['goal_dist'] = goal_dist
+    metrics['succ'] = goal_dist <= self.goal_dist_thresh
     return metrics
 
+  def _sample_goal(self):
+    goal = np.random.normal(0, 1, self.init_pos.shape)
+    goal = goal / np.linalg.norm(goal) * (self.max_pos - self.min_pos) / 2 + self.init_pos
+    return goal
+
   def reset(self):
-    self.goal = np.random.normal(0, 1, 2)
-    self.goal = self.goal / np.linalg.norm(self.goal) * 0.5 + self.init_pos
+    self.goal = self._sample_goal()
     self.pos = deepcopy(self.init_pos)
-    self.prev_action = np.zeros(2)
     if self.viewer is not None:
-      self.viewer.window.activate()
+      try:
+        self.viewer.window.activate()
+      except AttributeError:
+        pass
     return super().reset()
 
-  def step(self, action, eps=1e-9):
+  def _update_pos(self, pos, action, eps=1e-9):
     action = action / (eps + np.linalg.norm(action)) * self.speed
-    self.prev_action = action
-    if (self.pos + action >= 0).all() and (self.pos + action < 1).all():
-      self.pos += action
+    if (pos + action >= self.min_pos).all() and (pos + action < self.max_pos).all():
+      return pos + action
+    else:
+      return pos
+
+  def step(self, action):
+    self.pos = self._update_pos(self.pos, action)
     self.user_obs = self.get_user_obs()
     obs = self.obs()
-    info = self.eval_metrics(obs, self.goal)
+    info = self.eval_metrics(obs)
     done = self.timestep >= self.max_ep_len or info['succ']
     r = -1
     if info['succ']:
@@ -260,3 +280,70 @@ class LanderEnv(MIMIEnv):
 
   def render(self, *args, **kwargs):
     self.env.render(*args, **kwargs)
+
+
+class LatentExplorationEnv(CursorEnv):
+
+  def __init__(self, model, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+    self.model = model
+    self.n_act_dim = self.model.latent_dim
+    self.n_env_obs_dim = self.model.latent_dim
+    self.init_pos = np.zeros(self.model.latent_dim)
+
+  def _update_pos(self, pos, action):
+    pos = action
+    pos = np.minimum(self.max_pos, pos)
+    pos = np.maximum(self.min_pos, pos)
+    return pos
+
+  def _visualize_pos(self, pos):
+    return self.model.decode(pos[np.newaxis, :])[0]
+
+  def _visualize(self):
+    return self._visualize_pos(self.pos)
+
+  def render(self, mode='human', close=False):
+    if close:
+      if self.viewer is not None:
+        self.viewer.close()
+        self.viewer = None
+      return
+
+    if self.viewer is None:
+      self.viewer = rendering.SimpleImageViewer()
+
+    img = self._visualize()
+    self.viewer.imshow(img)
+
+
+class MNISTEnv(LatentExplorationEnv):
+
+  def __init__(self, *args, **kwargs):
+    model = models.BTCVAEEncoder('mnist')
+    super().__init__(model, *args, **kwargs)
+
+    self.clf = utils.make_mnist_clf()
+
+  def _sample_goal(self):
+    goal = np.random.choice(list(range(10)))
+    print('Goal: %d' % goal)
+    return goal
+
+  def _visualize(self, win_size=512):
+    img = super()._visualize()
+    img = skimage.transform.resize(img, (win_size, win_size))
+    img = (img * 255).astype('uint8')
+    img = np.concatenate([img] * 3, axis=2)
+    return img
+
+  def _classify(self, pos):
+    return self.clf.predict_proba(self._visualize_pos(pos).reshape(1, -1))[0]
+
+  def _goal_dist(self, pos):
+    probs = self._classify(pos)
+    non_goal_probs = np.concatenate((probs[:self.goal], probs[self.goal+1:]))
+    goal_prob = probs[self.goal]
+    next_prob = np.max(non_goal_probs)
+    dist = next_prob - goal_prob
+    return dist

@@ -12,6 +12,10 @@ import numpy as np
 
 from . import utils
 
+import sys
+sys.path.append(utils.dvae_dir)
+import disvae.utils.modelIO
+
 
 class TFModel(object):
 
@@ -268,3 +272,30 @@ class MIModel(BaseModel):
     feed_dict = self.format_batch(batch)
     loss = self.compute_batch_loss(feed_dict, update=False)
     return -loss
+
+
+class BTCVAEEncoder(object):
+
+  def __init__(self, dataset):
+    model_dir = os.path.join(utils.dvae_dir, 'results', 'btcvae_%s' % dataset)
+    self.model = disvae.utils.modelIO.load_model(model_dir)
+    self.model.eval()
+    self.latent_dim = self.model.latent_dim
+    self.device = next(self.model.parameters()).device
+
+  def encode(self, images, batch_size=32):
+    data = utils.front_img_ch(images)
+    def op(batch):
+      torched_batch = utils.numpy_to_torch(batch).to(self.device)
+      batch_latents, _ = self.model.encoder(torched_batch)
+      return utils.torch_to_numpy(batch_latents)
+    return utils.batch_op(data, batch_size, op)
+
+  def decode(self, latents, batch_size=32):
+    def op(batch):
+      torched_latents = utils.numpy_to_torch(batch).to(self.device)
+      batch_images = self.model.decoder(torched_latents)
+      return utils.torch_to_numpy(batch_images)
+    images = utils.batch_op(latents, batch_size, op)
+    images = utils.back_img_ch(images)
+    return images

@@ -6,14 +6,19 @@ from collections import defaultdict
 from copy import deepcopy
 import os
 import time
+import pickle
 
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import numpy as np
+import torch
+import sklearn.ensemble
+from PIL import Image
 
 home_dir = os.path.expanduser('~')
 mimi_dir = os.path.join(home_dir, 'mimi')
 data_dir = os.path.join(mimi_dir, 'data')
+dvae_dir = os.path.join(home_dir, 'disentangling-vae')
 if not os.path.exists(data_dir):
   os.makedirs(data_dir)
 
@@ -277,12 +282,11 @@ def default_batch_acc(all_outputs, outputs):
 
 
 def batch_op(inputs, batch_size, op, acc=default_batch_acc):
-  v = list(inputs.values())[0]
-  n_batches = int(np.ceil(len(v) / batch_size))
+  n_batches = int(np.ceil(len(inputs) / batch_size))
   batch_idx = 0
   all_outputs = None
   for batch_idx in range(n_batches):
-    batch = {k: v[batch_idx*batch_size:(batch_idx+1)*batch_size] for k, v in inputs.items()}
+    batch = inputs[batch_idx*batch_size:(batch_idx+1)*batch_size]
     outputs = op(batch)
     if all_outputs is None:
       all_outputs = outputs
@@ -323,10 +327,10 @@ def run_ep(policy, env, max_ep_len=1000, render=False, init_delay=0):
       except NotImplementedError:
         pass
 
-  obs = env.reset()
   if init_delay > 0:
-    render_env()
     time.sleep(init_delay)
+  obs = env.reset()
+  render_env()
   done = False
   prev_obs = deepcopy(obs)
   rollout = []
@@ -433,3 +437,83 @@ def compute_rews_of_rollouts(rollouts_of_pol, reward_models, verbose=True):
     if verbose:
       print(pol_idx, rewards)
   return np.array(rewards_of_pol)
+
+
+def torch_to_numpy(x):
+  return x.detach().cpu().numpy()
+
+
+def numpy_to_torch(x):
+  return torch.from_numpy(x).float().contiguous()
+
+
+def front_img_ch(images):
+  data = np.swapaxes(images, 2, 3)
+  data = np.swapaxes(data, 1, 2)
+  return data
+
+
+def back_img_ch(images):
+  data = np.swapaxes(images, 1, 2)
+  data = np.swapaxes(data, 2, 3)
+  return data
+
+
+def make_mnist_dataset():
+  def load_imgs(X):
+    X = X.T
+    d = int(np.sqrt(X.shape[1]))
+    X = X.reshape((X.shape[0], d, d))
+    return X
+
+  load_labels = lambda X: X.T.ravel().astype(int)
+  X = np.load(os.path.join(data_dir, 'mnist', 'mnist.npz'))
+  train_imgs = load_imgs(X['train'])
+  train_labels = load_labels(X['train_labels'])
+  test_imgs = load_imgs(X['test'])
+  test_labels = load_labels(X['test_labels'])
+
+  imgs = np.concatenate((train_imgs, test_imgs), axis=0)
+  resized_imgs = np.zeros((imgs.shape[0], 32, 32))
+  for i in range(imgs.shape[0]):
+    x = Image.fromarray(imgs[i])
+    x = x.resize((32, 32))
+    resized_imgs[i] = np.array(x)
+  imgs = resized_imgs
+  feats = imgs.reshape(imgs.shape[0], imgs.shape[1] * imgs.shape[2]) / 255.
+  labels = np.concatenate((train_labels, test_labels))
+
+  train_idxes = list(range(train_labels.size))
+  val_idxes = list(range(train_labels.size, train_labels.size + test_labels.size))
+
+  dataset = {
+    'feats': feats,
+    'labels': labels,
+    'train_idxes': train_idxes,
+    'val_idxes': val_idxes
+  }
+  return dataset
+
+
+def make_parent_dir(path):
+  try:
+    os.makedirs(os.path.dirname(path), exist_ok=False)
+  except FileExistsError:
+    pass
+
+
+def make_mnist_clf():
+  mnist_data_dir = os.path.join(data_dir, 'mnist')
+  clf_path = os.path.join(mnist_data_dir, 'clf.pkl')
+  if os.path.exists(clf_path):
+    with open(clf_path, 'rb') as f:
+      return pickle.load(f)
+  clf = sklearn.ensemble.RandomForestClassifier()
+  dataset = make_mnist_dataset()
+  X = dataset['feats']
+  Y = dataset['labels']
+  clf.fit(X, Y)
+  make_parent_dir(clf_path)
+  with open(clf_path, 'wb') as f:
+    pickle.dump(clf, f, pickle.HIGHEST_PROTOCOL)
+  return clf
