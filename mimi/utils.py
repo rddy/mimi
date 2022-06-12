@@ -108,7 +108,7 @@ def make_perf_mat(perf_evals, y_key, smooth_win=10):
       lst += [p] * (n - len(lst))
     return lst
 
-  return np.array([pad(perf_eval[y_key], max_len) for perf_eval in perf_evals])
+  return np.array([pad(deepcopy(perf_eval[y_key]), max_len) for perf_eval in perf_evals])
 
 
 def smooth(xs, win=10):
