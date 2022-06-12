@@ -327,10 +327,12 @@ def run_ep(policy, env, max_ep_len=1000, render=False, init_delay=0):
       except NotImplementedError:
         pass
 
-  if init_delay > 0:
+  if env.name == 'mnist' and init_delay > 0:
     time.sleep(init_delay)
   obs = env.reset()
   render_env()
+  if env.name != 'mnist' and init_delay > 0:
+    time.sleep(init_delay)
   done = False
   prev_obs = deepcopy(obs)
   rollout = []

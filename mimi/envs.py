@@ -323,6 +323,8 @@ class MNISTEnv(LatentExplorationEnv):
     model = models.BTCVAEEncoder('mnist')
     super().__init__(model, *args, **kwargs)
 
+    self.name = 'mnist'
+
     self.clf = utils.make_mnist_clf()
 
   def _sample_goal(self):
