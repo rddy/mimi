@@ -50,7 +50,6 @@ class MIMIEnv(gym.Env):
   def n_obs_dim(self):
     return self.n_env_obs_dim + self.n_user_obs_dim
 
-
   def extract_env_obses(self, obses):
     return obses[:, :self.n_env_obs_dim]
 
@@ -64,7 +63,7 @@ class MIMIEnv(gym.Env):
     return self.user_model(self.pos, self.goal)
 
   def reset(self):
-    self.user_model.reset()
+    self.user_model.reset(self.pos)
     self.user_obs = self.get_user_obs()
     self.prev_obs = self.obs()
     self.timestep = 0
@@ -175,11 +174,6 @@ class CursorEnv(MIMIEnv):
   def reset(self):
     self.goal = self._sample_goal()
     self.pos = deepcopy(self.init_pos)
-    if self.viewer is not None:
-      try:
-        self.viewer.window.activate()
-      except AttributeError:
-        pass
     return super().reset()
 
   def _update_pos(self, pos, action, eps=1e-9):
@@ -209,7 +203,6 @@ class CursorEnv(MIMIEnv):
 
     if self.viewer is None:
       self.viewer = rendering.Viewer(width=self.win_dims[0], height=self.win_dims[1])
-      self.viewer.window.activate()
 
     b = 0.1
     m = 0.8
@@ -221,11 +214,12 @@ class CursorEnv(MIMIEnv):
     box = self.viewer.draw_polyline([tuple(X[i, :]) for i in range(X.shape[0])])
     box.set_color(0, 0, 0)
 
-    ang = -np.arctan2(*self.user_obs)
-    t = rendering.Transform(rotation=ang, translation=tuple(scale(np.ones(2)*0.5)*self.win_dims))
-    ctrl = self.viewer.draw_polygon([(-10, -10), (0, 40), (10, -10)])
-    ctrl.set_color(0, 0, 0)
-    ctrl.add_attr(t)
+    if self.user_obs.size == 2:
+      ang = -np.arctan2(*self.user_obs)
+      t = rendering.Transform(rotation=ang, translation=tuple(scale(np.ones(2)*0.5)*self.win_dims))
+      ctrl = self.viewer.draw_polygon([(-10, -10), (0, 40), (10, -10)])
+      ctrl.set_color(0, 0, 0)
+      ctrl.add_attr(t)
 
     t = rendering.Transform(translation=tuple(scale(self.pos)*self.win_dims))
     pos = self.viewer.draw_circle(10)

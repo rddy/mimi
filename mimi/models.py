@@ -274,6 +274,29 @@ class MIModel(BaseModel):
     return -loss
 
 
+class InvDynModel(BaseModel):
+
+  def __init__(self, *args, **kwargs):
+    super().__init__(
+      *args,
+      input_vars=['env_obses', 'next_env_obses'],
+      output_var='user_obses',
+      **kwargs
+    )
+
+    self.x_pred = self.build_model(*self.input_phs)
+    self.loss = tf.reduce_mean((self.x_pred-self.output_ph)**2)
+
+  def __call__(self, env_obs, next_env_obs):
+    batch = {
+      'env_obses': env_obs[np.newaxis, :],
+      'next_env_obses': next_env_obs[np.newaxis, :]
+    }
+    feed_dict = self.format_batch(batch)
+    pred_user_obs = self.sess.run(self.x_pred, feed_dict=feed_dict)[0]
+    return pred_user_obs
+
+
 class BTCVAEEncoder(object):
 
   def __init__(self, dataset):

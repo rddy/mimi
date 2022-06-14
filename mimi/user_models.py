@@ -9,6 +9,9 @@ import matplotlib as mpl
 import mediapipe as mp
 from PIL import Image
 
+from . import models
+from . import utils
+
 
 class User(object):
 
@@ -116,3 +119,90 @@ class HumanHandUser(User):
       self.prev_img = self._downscale_img(img)
       self.prev_user_obs = img_feats
     return self.prev_user_obs
+
+
+class SimUser(User):
+
+  def __init__(
+    self,
+    *args,
+    inv_dyn_model_init_args,
+    inv_dyn_model_init_kwargs={},
+    inv_dyn_model_train_kwargs={},
+    update_freq=1,
+    buffer_size=None,
+    noise_std=1,
+    time_offset=1,
+    **kwargs):
+    super().__init__(*args, **kwargs)
+
+    self.inv_dyn_model_train_kwargs = inv_dyn_model_train_kwargs
+    self.update_freq = update_freq
+    self.buffer_size = buffer_size
+    self.noise_std = noise_std
+    self.time_offset = time_offset
+
+    self.inv_dyn_model = models.InvDynModel(
+      *inv_dyn_model_init_args,
+      **inv_dyn_model_init_kwargs
+    )
+    self.inv_dyn_model.init_tf_vars()
+    self.data = {k: [] for k in ['user_obses', 'env_obses', 'next_env_obses']}
+    self.user_obses = None
+    self.env_obses = None
+    self.n_eps_since_update = 0
+
+  def _format_data(self, data):
+    return {k: np.array(v) for k, v in data.items()}
+
+  def _update_inv_dyn_model(self):
+    data = self._format_data(self.data)
+    data = utils.split_data(data, train_frac=0.9)
+    self.inv_dyn_model.train(data, **self.inv_dyn_model_train_kwargs)
+
+  def reset(self, *args, **kwargs):
+    if self.user_obses is not None:
+      self.data['user_obses'].extend(self.user_obses[:-self.time_offset])
+      self.data['env_obses'].extend(self.env_obses[:-self.time_offset])
+      self.data['next_env_obses'].extend(self.env_obses[self.time_offset:])
+
+      self.data['user_obses'].extend(self.user_obses[-self.time_offset:])
+      self.data['env_obses'].extend(self.env_obses[-self.time_offset:])
+      self.data['next_env_obses'].extend(self.env_obses[-1:] * self.time_offset)
+
+      if self.buffer_size is not None:
+        for k, v in self.data.items():
+          self.data[k] = v[-self.buffer_size:]
+
+      self.n_eps_since_update += 1
+      if self.n_eps_since_update % self.update_freq == 0:
+        self._update_inv_dyn_model()
+        self.n_eps_since_update = 0
+
+    self.user_obses = []
+    self.env_obses = []
+
+  def _desired_next_obs(self, obs, goal):
+    raise NotImplementedError
+
+  def call(self, obs, goal):
+    desired_next_obs = self._desired_next_obs(obs, goal)
+    user_obs = self.inv_dyn_model(obs, desired_next_obs)
+    user_obs += np.random.normal(0, self.noise_std, user_obs.shape)
+    self.env_obses.append(obs)
+    self.user_obses.append(user_obs)
+    return user_obs
+
+
+class SimCursorUser(SimUser):
+
+  def __init__(self, speed, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+    self.speed = speed
+
+  def _normalize_speed(self, v):
+    return v / np.linalg.norm(v) * self.speed
+
+  def _desired_next_obs(self, obs, goal):
+    n_steps = min(self.time_offset, np.linalg.norm(goal-obs)/self.speed)
+    return obs + self._normalize_speed(goal - obs) * n_steps
