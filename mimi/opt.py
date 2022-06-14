@@ -61,6 +61,9 @@ class GP(object):
     )
     reward = self.reward_model(rollouts)
     self.eval_data_of_pol.append((policy_params, rollouts, reward))
+    if self.verbose:
+      true_reward = np.mean([sum(x[2] for x in r) for r in rollouts])
+      print(reward, true_reward, policy_params)
     return -reward
 
   def run(
@@ -70,8 +73,10 @@ class GP(object):
     n_eps_per_pol=None,
     gp_min_kwargs={},
     ep_kwargs={},
-    reward_model_train_kwargs={}
+    reward_model_train_kwargs={},
+    verbose=False
     ):
+    self.verbose = verbose
     self.n_steps_per_pol = n_steps_per_pol
     self.n_eps_per_pol = n_eps_per_pol
     self.ep_kwargs = ep_kwargs

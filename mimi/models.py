@@ -2,6 +2,7 @@
 
 from __future__ import division
 
+from queue import Queue
 import pickle
 import uuid
 import os
@@ -287,14 +288,60 @@ class InvDynModel(BaseModel):
     self.x_pred = self.build_model(*self.input_phs)
     self.loss = tf.reduce_mean((self.x_pred-self.output_ph)**2)
 
-  def __call__(self, env_obs, next_env_obs):
+  def __call__(self, env_obses, next_env_obses):
     batch = {
-      'env_obses': env_obs[np.newaxis, :],
-      'next_env_obses': next_env_obs[np.newaxis, :]
+      'env_obses': env_obses,
+      'next_env_obses': next_env_obses
     }
     feed_dict = self.format_batch(batch)
-    pred_user_obs = self.sess.run(self.x_pred, feed_dict=feed_dict)[0]
-    return pred_user_obs
+    pred_user_obses = self.sess.run(self.x_pred, feed_dict=feed_dict)
+    return pred_user_obses
+
+
+class EnsembleInvDynModel(object):
+
+  def __init__(
+    self,
+    model_init_args,
+    model_init_kwargs={},
+    intuitive_models=[],
+    n_models=2,
+    buffer_size=0,
+    temp=1
+    ):
+    self.temp = temp
+    self.models = intuitive_models
+    for _ in range(n_models-len(intuitive_models)):
+      model = InvDynModel(*model_init_args, **model_init_kwargs)
+      model.init_tf_vars()
+      self.models.append(model)
+    self.logits = [Queue(maxsize=buffer_size) for _ in range(n_models)]
+
+  def batch_call(self, env_obses, next_env_obses):
+    batch = {
+      'env_obses': env_obses,
+      'next_env_obses': next_env_obses
+    }
+    feed_dict = {}
+    for model in self.models:
+      feed_dict.update(model.format_batch(batch))
+    x_preds = [model.x_pred for model in self.models]
+    pred_user_obses = self.models[0].sess.run(x_preds, feed_dict=feed_dict)
+    return np.array(pred_user_obses)
+
+  def update(self, env_obs, user_obs, next_env_obs):
+    pred_user_obses = self.batch_call(env_obs[np.newaxis, :], next_env_obs[np.newaxis, :])[:, 0, :]
+    logits = -np.mean((pred_user_obses-user_obs)**2, axis=1)
+    for model_idx, q in enumerate(self.logits):
+      if q.full():
+        q.get()
+      q.put(logits[model_idx])
+
+  def __call__(self, *args, **kwargs):
+    logits = np.array([np.mean(q.queue) for q in self.logits])
+    logits *= self.temp
+    model_idx = utils.sample_from_categorical(logits)
+    return self.models[model_idx](*args, **kwargs)
 
 
 class BTCVAEEncoder(object):
