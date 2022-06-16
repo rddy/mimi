@@ -148,11 +148,14 @@ class SimUser(User):
   def _desired_next_obs(self, obs, goal):
     raise NotImplementedError
 
-  def call(self, obs, goal, eps=1e-9):
+  def _normalize_user_obs(self, user_obs):
+    return user_obs
+
+  def call(self, obs, goal):
     desired_next_obs = self._desired_next_obs(obs, goal)
     user_obs = self.inv_dyn_model(obs[np.newaxis, :], desired_next_obs[np.newaxis, :])[0]
     user_obs += np.random.normal(0, self.noise_std, user_obs.shape)
-    user_obs /= np.linalg.norm(user_obs) + eps
+    user_obs = self._normalize_user_obs(user_obs)
     if self.prev_obs is not None:
       self.inv_dyn_model.update(self.prev_obs, self.prev_user_obs, obs)
     self.prev_obs = obs
@@ -165,9 +168,14 @@ class SimCursorUser(SimUser):
   def __init__(self, speed, *args, **kwargs):
     super().__init__(*args, **kwargs)
     self.speed = speed
+    self.obs_low = -1
+    self.obs_high = 1
 
   def _normalize_speed(self, v):
     return v / np.linalg.norm(v) * self.speed
 
   def _desired_next_obs(self, obs, goal):
     return obs + self._normalize_speed(goal - obs)
+
+  def _normalize_user_obs(self, user_obs, eps=1e-9):
+    return user_obs / np.linalg.norm(user_obs) + eps

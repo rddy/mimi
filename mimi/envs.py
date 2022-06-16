@@ -3,6 +3,7 @@ from __future__ import division
 from collections import defaultdict
 from copy import deepcopy
 import time
+from queue import Queue
 
 import numpy as np
 import gym
@@ -45,6 +46,7 @@ class MIMIEnv(gym.Env):
     self.goal = None
     self.pos = None
     self.viewer = None
+    self.prev_step = None
 
   @property
   def n_obs_dim(self):
@@ -77,8 +79,8 @@ class MIMIEnv(gym.Env):
   def step(self, action, r, done, info):
     self.timestep += 1
     obs = self.obs()
-    prev_user_obs = self.extract_user_obses(self.prev_obs[np.newaxis])[0]
     info['goal'] = self.goal
+    self.prev_step = (self.prev_obs, action, r, obs, done, info)
     self.prev_obs = obs
     if self.render_on_step:
       self.render()
@@ -234,6 +236,56 @@ class CursorEnv(MIMIEnv):
     return self.viewer.render()
 
 
+class RewardModelCursorEnv(CursorEnv):
+
+  def __init__(
+    self,
+    *args,
+    update_freq=10,
+    buffer_size=10,
+    **kwargs
+    ):
+    super().__init__(*args, **kwargs)
+
+    self.observation_space = gym.spaces.Box(
+      np.concatenate((np.ones(self.n_env_obs_dim) * self.min_pos, np.ones(self.n_user_obs_dim) * self.user_model.obs_low)),
+      np.concatenate((np.ones(self.n_env_obs_dim) * self.max_pos, np.ones(self.n_user_obs_dim) * self.user_model.obs_high))
+    )
+    self.action_space = gym.spaces.Box(
+      -np.ones(self.n_env_obs_dim),
+      np.ones(self.n_env_obs_dim)
+    )
+
+    self.update_freq = update_freq
+    self.rollouts = Queue(maxsize=buffer_size)
+    self.n_eps_since_update = 0
+    self.rollout = None
+
+  def set_reward_model(self, reward_model):
+    self.reward_model = reward_model
+    self.reward_model.model.init_tf_vars()
+
+  def reset(self, *args, **kwargs):
+    rtn = super().reset(*args, **kwargs)
+    if self.rollout is not None:
+      if self.rollouts.full():
+        self.rollouts.get()
+      self.rollouts.put(self.rollout)
+    self.rollout = []
+    self.n_eps_since_update += 1
+    if self.n_eps_since_update % self.update_freq == 0:
+      data = self.reward_model.format_rollouts(self.rollouts.queue)
+      self.reward_model.train(data)
+      self.n_eps_since_update = 0
+    return rtn
+
+  def step(self, *args, **kwargs):
+    obs, r, done, info = super().step(*args, **kwargs)
+    self.rollout.append(self.prev_step)
+    r = self.reward_model.compute_step_rewards(list(self.rollouts.queue) + [self.rollout])[-1][0]
+    return obs, r, done, info
+
+
 class LanderEnv(MIMIEnv):
 
   def __init__(
@@ -284,13 +336,13 @@ class LatentExplorationEnv(CursorEnv):
     self.n_act_dim = self.model.latent_dim
     self.n_env_obs_dim = self.model.latent_dim
     self.init_pos = np.zeros(self.model.latent_dim)
-
+  '''
   def _update_pos(self, pos, action):
     pos = action
     pos = np.minimum(self.max_pos, pos)
     pos = np.maximum(self.min_pos, pos)
     return pos
-
+  ''' # DEBUG
   def _visualize_pos(self, pos):
     return self.model.decode(pos[np.newaxis, :])[0]
 
@@ -323,7 +375,6 @@ class MNISTEnv(LatentExplorationEnv):
 
   def _sample_goal(self):
     goal = np.random.choice(list(range(10)))
-    print('Goal: %d' % goal)
     return goal
 
   def _visualize(self, win_size=512):

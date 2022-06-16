@@ -252,8 +252,7 @@ class MIModel(BaseModel):
     ):
     super().__init__(*args, **kwargs)
 
-    raw_out = self.build_model(*self.input_phs)
-    left = tf.reduce_mean(raw_out)
+    left = self.build_model(*self.input_phs)
     shuffled_stats = []
     shuffle_var_idx = self.input_vars.index(shuffle_var)
     for _ in range(n_mine_samp):
@@ -265,14 +264,17 @@ class MIModel(BaseModel):
     a_scope = self.scope + '/a'
     a = self.build_model(*a_phs, scope=a_scope)
     right = tf.reduce_mean(tf.exp(shuffled_stats), axis=1) / tf.exp(a) + a - 1
-    right = tf.reduce_mean(right)
-    mi_lb = left - right
-    self.loss = -mi_lb
+    self.mi_lb = left - right
+    self.loss = -tf.reduce_mean(self.mi_lb)
 
   def compute_mi(self, batch):
     feed_dict = self.format_batch(batch)
     loss = self.compute_batch_loss(feed_dict, update=False)
     return -loss
+
+  def compute_fine_mi(self, batch):
+    feed_dict = self.format_batch(batch)
+    return self.sess.run(self.mi_lb, feed_dict=feed_dict)
 
 
 class InvDynModel(BaseModel):

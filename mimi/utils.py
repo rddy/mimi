@@ -331,6 +331,8 @@ def run_ep(policy, env, max_ep_len=1000, render=False, init_delay=0):
     time.sleep(init_delay)
   obs = env.reset()
   render_env()
+  if env.name == 'mnist' and render:
+    print('Goal: %d' % env.goal)
   if env.name != 'mnist' and init_delay > 0:
     time.sleep(init_delay)
   done = False
@@ -489,6 +491,7 @@ def make_mnist_dataset():
   val_idxes = list(range(train_labels.size, train_labels.size + test_labels.size))
 
   dataset = {
+    'imgs': imgs,
     'feats': feats,
     'labels': labels,
     'train_idxes': train_idxes,

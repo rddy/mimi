@@ -49,3 +49,7 @@ class MIRewardModel(object):
     data = self.format_rollouts(rollouts)
     self.train(data)
     return self.evaluate(data)
+
+  def compute_step_rewards(self, rollouts):
+    data = utils.format_rollouts(rollouts, self.env)
+    return self.model.compute_fine_mi(data)
