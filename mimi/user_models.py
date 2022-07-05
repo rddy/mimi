@@ -179,3 +179,13 @@ class SimCursorUser(SimUser):
 
   def _normalize_user_obs(self, user_obs, eps=1e-9):
     return user_obs / np.linalg.norm(user_obs) + eps
+
+
+class SimMNISTUser(SimCursorUser):
+
+  def __init__(self, goal_latents, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+    self.goal_latents = goal_latents
+
+  def _desired_next_obs(self, obs, goal):
+    return super()._desired_next_obs(obs, self.goal_latents[goal])
